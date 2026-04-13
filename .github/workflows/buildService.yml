@@ -19,19 +19,27 @@ jobs:
       - name: Checkout services repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
       - name: Build the service package
         id: build
         run: |
-          git submodule update --init --recursive
-          start-sdk init
           make
-          PACKAGE_ID=$(yq -oy ".id" manifest.*)
+          PACKAGE_ID=$(awk -F"'" '/id:/ {print $2}' startos/manifest/index.ts)
           echo "package_id=$PACKAGE_ID" >> $GITHUB_ENV
-          printf "\n SHA256SUM: $(sha256sum ${PACKAGE_ID}.s9pk) \n"
+          printf "\nSHA256SUMS:\n"
+          sha256sum ${PACKAGE_ID}_*.s9pk
         shell: bash
 
       - name: Upload .s9pk
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.package_id }}.s9pk
-          path: ./${{ env.package_id }}.s9pk
+          name: ${{ env.package_id }}-s9pks
+          path: ./${{ env.package_id }}_*.s9pk
