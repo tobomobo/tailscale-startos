@@ -1,5 +1,5 @@
 export const short = {
-  en_US: 'Tailscale gateway for StartOS services with a device login link',
+  en_US: 'Tailscale Serve (and Funnel) for StartOS services with a device login link',
 }
 
 export const long = {

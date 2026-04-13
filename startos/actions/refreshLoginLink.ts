@@ -9,25 +9,15 @@ import { syncExportedUrls } from '../urlPlugin'
 
 export const refreshLoginLink = sdk.Action.withoutInput(
   'refresh-login-link',
-  async ({ effects }) => {
-    const status = await readStatusInfo()
-
-    return {
-      name: 'Refresh Login Link',
-      description:
-        'Request a fresh device-independent Tailscale login link for this gateway node.',
-      warning: null,
-      allowedStatuses: 'any',
-      group: 'Access',
-      visibility:
-        status?.BackendState === 'Running'
-          ? {
-              disabled:
-                'This Tailscale gateway is already authenticated and does not need a login link.',
-            }
-          : 'enabled',
-    }
-  },
+  async () => ({
+    name: 'Refresh Login Link',
+    description:
+      'Request a fresh device-independent Tailscale login link for this gateway node. No-op if this node is already signed in.',
+    warning: null,
+    allowedStatuses: 'any',
+    group: 'Access',
+    visibility: 'enabled',
+  }),
   async ({ effects }) => {
     const status = await readStatusInfo()
 

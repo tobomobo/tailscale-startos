@@ -82,6 +82,6 @@ jobs:
             echo "Publish skipped: missing registry credentials."
           else
             for s9pk in ${{ env.package_id }}_*.s9pk; do
-              start-sdk publish https://$S9USER:$S9PASS@$S9REGISTRY "$s9pk"
+              start-cli s9pk publish https://$S9USER:$S9PASS@$S9REGISTRY "$s9pk"
             done
           fi

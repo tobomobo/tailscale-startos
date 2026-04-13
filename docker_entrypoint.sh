@@ -27,7 +27,15 @@ LAST_PROXY_HASH=
 LAST_APPLIED_HASH=
 STARTUP_LOGIN_ATTEMPTED=0
 
+CLEANED_UP=0
+
 cleanup() {
+  if [ "${CLEANED_UP}" -ne 0 ]; then
+    return 0
+  fi
+  CLEANED_UP=1
+  trap - EXIT
+
   for pid in "${PROXY_PID}" "${TAILSCALED_PID}"; do
     if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
       kill "${pid}" 2>/dev/null || true
@@ -257,8 +265,23 @@ start_proxy() {
   PROXY_PID=$!
 }
 
+APPLY_BACKOFF=0
+APPLY_ERROR_FILE="${STATE_DIR}/tailscale-apply.stderr"
+
 apply_routes() {
-  /usr/local/bin/tailscale-gateway apply --config "${CONFIG_FILE}" --socket "${SOCKET}"
+  if /usr/local/bin/tailscale-gateway apply --config "${CONFIG_FILE}" --socket "${SOCKET}" > "${APPLY_ERROR_FILE}.tmp" 2>&1; then
+    rm -f "${APPLY_ERROR_FILE}" "${APPLY_ERROR_FILE}.tmp"
+    APPLY_BACKOFF=0
+    return 0
+  fi
+  mv "${APPLY_ERROR_FILE}.tmp" "${APPLY_ERROR_FILE}"
+  # Log only the first failure and once per backoff window to avoid log spam.
+  if [ "${APPLY_BACKOFF}" -eq 0 ]; then
+    echo "tailscale-gateway apply failed:" >&2
+    cat "${APPLY_ERROR_FILE}" >&2 || true
+  fi
+  APPLY_BACKOFF=$(( APPLY_BACKOFF + 1 ))
+  return 1
 }
 
 start_proxy
@@ -282,7 +305,14 @@ while kill -0 "${TAILSCALED_PID}" 2>/dev/null; do
     fi
   fi
 
-  sleep 2
+  # Back off retries on persistent apply failure so logs don't spam every 2s.
+  if [ "${APPLY_BACKOFF}" -gt 0 ] && [ "${APPLY_BACKOFF}" -lt 30 ]; then
+    sleep 2
+  elif [ "${APPLY_BACKOFF}" -ge 30 ]; then
+    sleep 30
+  else
+    sleep 2
+  fi
 done
 
 wait "${TAILSCALED_PID}"

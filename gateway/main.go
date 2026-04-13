@@ -133,75 +133,81 @@ func runApply(args []string) error {
 	}
 
 	if err := runTailCommand(*socketPath, "serve", "reset"); err != nil {
-		return err
+		log.Printf("serve reset failed: %v (continuing)", err)
+	}
+	// Funnel state is stored separately from serve state in tailscaled,
+	// so `serve reset` alone leaves previous funnel routes active. Reset
+	// funnel explicitly; the command is a no-op when no funnel routes exist.
+	if err := runTailCommand(*socketPath, "funnel", "reset"); err != nil {
+		log.Printf("funnel reset failed: %v (continuing)", err)
 	}
 
+	var applyErrs []string
 	for _, rt := range cfg.Routes {
-		switch rt.Mode {
-		case "http":
-			target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
-			if err := runTailCommand(
-				*socketPath,
-				"serve",
-				"--bg",
-				fmt.Sprintf("--http=%d", rt.ExternalPort),
-				target,
-			); err != nil {
-				return fmt.Errorf("apply http route %s: %w", rt.ID, err)
-			}
-		case "https":
-			target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
-			if err := runTailCommand(
-				*socketPath,
-				"serve",
-				"--bg",
-				fmt.Sprintf("--https=%d", rt.ExternalPort),
-				target,
-			); err != nil {
-				return fmt.Errorf("apply https route %s: %w", rt.ID, err)
-			}
-		case "tcp":
-			target := fmt.Sprintf("tcp://127.0.0.1:%d", rt.LocalPort)
-			if err := runTailCommand(
-				*socketPath,
-				"serve",
-				"--bg",
-				fmt.Sprintf("--tcp=%d", rt.ExternalPort),
-				target,
-			); err != nil {
-				return fmt.Errorf("apply tcp route %s: %w", rt.ID, err)
-			}
-		case "tls-terminated-tcp":
-			target := fmt.Sprintf("tcp://127.0.0.1:%d", rt.LocalPort)
-			if err := runTailCommand(
-				*socketPath,
-				"serve",
-				"--bg",
-				fmt.Sprintf("--tls-terminated-tcp=%d", rt.ExternalPort),
-				target,
-			); err != nil {
-				return fmt.Errorf("apply tls-terminated-tcp route %s: %w", rt.ID, err)
-			}
-		case "funnel":
-			if rt.ExternalPort != 443 && rt.ExternalPort != 8443 && rt.ExternalPort != 10000 {
-				return fmt.Errorf("funnel route %s uses port %d; tailscale funnel only accepts 443, 8443, 10000", rt.ID, rt.ExternalPort)
-			}
-			target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
-			if err := runTailCommand(
-				*socketPath,
-				"funnel",
-				"--bg",
-				fmt.Sprintf("--https=%d", rt.ExternalPort),
-				target,
-			); err != nil {
-				return fmt.Errorf("apply funnel route %s: %w", rt.ID, err)
-			}
-		default:
-			return fmt.Errorf("unknown mode %q for route %s", rt.Mode, rt.ID)
+		if err := applyRoute(*socketPath, rt); err != nil {
+			log.Printf("apply route %s: %v (continuing)", rt.ID, err)
+			applyErrs = append(applyErrs, fmt.Sprintf("%s: %v", rt.ID, err))
 		}
 	}
-
+	if len(applyErrs) > 0 {
+		return fmt.Errorf("%d route(s) failed to apply: %s", len(applyErrs), applyErrs)
+	}
 	return nil
+}
+
+func applyRoute(socketPath string, rt route) error {
+	switch rt.Mode {
+	case "http":
+		target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
+		return runTailCommand(
+			socketPath,
+			"serve",
+			"--bg",
+			fmt.Sprintf("--http=%d", rt.ExternalPort),
+			target,
+		)
+	case "https":
+		target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
+		return runTailCommand(
+			socketPath,
+			"serve",
+			"--bg",
+			fmt.Sprintf("--https=%d", rt.ExternalPort),
+			target,
+		)
+	case "tcp":
+		target := fmt.Sprintf("tcp://127.0.0.1:%d", rt.LocalPort)
+		return runTailCommand(
+			socketPath,
+			"serve",
+			"--bg",
+			fmt.Sprintf("--tcp=%d", rt.ExternalPort),
+			target,
+		)
+	case "tls-terminated-tcp":
+		target := fmt.Sprintf("tcp://127.0.0.1:%d", rt.LocalPort)
+		return runTailCommand(
+			socketPath,
+			"serve",
+			"--bg",
+			fmt.Sprintf("--tls-terminated-tcp=%d", rt.ExternalPort),
+			target,
+		)
+	case "funnel":
+		if rt.ExternalPort != 443 && rt.ExternalPort != 8443 && rt.ExternalPort != 10000 {
+			return fmt.Errorf("funnel port %d is not one of 443, 8443, 10000", rt.ExternalPort)
+		}
+		target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
+		return runTailCommand(
+			socketPath,
+			"funnel",
+			"--bg",
+			fmt.Sprintf("--https=%d", rt.ExternalPort),
+			target,
+		)
+	default:
+		return fmt.Errorf("unknown mode %q", rt.Mode)
+	}
 }
 
 func serveHTTP(ctx context.Context, rt route) error {

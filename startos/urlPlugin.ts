@@ -2,12 +2,12 @@ import { sdk } from './sdk'
 import { readGatewayConfig } from './lib/gatewayConfig'
 import { routeDetailsForPlugin } from './lib/tailscaleUrls'
 
-const addExposureFromUrlAction = { id: 'add-exposure-from-url' } as any
-const removeExposureFromUrlAction = { id: 'remove-exposure-from-url' } as any
+const addServeFromUrlAction = { id: 'add-serve-from-url' } as any
+const removeServeFromUrlAction = { id: 'remove-serve-from-url' } as any
 
 export const registerUrlPlugin = sdk.setupOnInit(async (effects) => {
   await sdk.plugin.url.register(effects, {
-    tableAction: addExposureFromUrlAction,
+    tableAction: addServeFromUrlAction,
   })
 })
 
@@ -28,7 +28,7 @@ export const syncExportedUrls = sdk.plugin.url.setupExportedUrls(
           hostId: details.serviceInterface.addressInfo.hostId,
           internalPort: details.serviceInterface.addressInfo.internalPort,
           ssl: details.ssl,
-          public: false,
+          public: route.mode === 'funnel',
           hostname: details.dnsName,
           port: details.port,
           info: {
@@ -37,7 +37,7 @@ export const syncExportedUrls = sdk.plugin.url.setupExportedUrls(
             externalPort: route.externalPort,
           },
         },
-        removeAction: removeExposureFromUrlAction,
+        removeAction: removeServeFromUrlAction,
         overflowActions: [],
       })
     }
