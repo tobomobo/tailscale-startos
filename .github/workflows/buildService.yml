@@ -28,6 +28,9 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Initialize StartOS developer key
+        run: start-cli init-key
+
       - name: Build the service package
         id: build
         run: |
