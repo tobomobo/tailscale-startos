@@ -10,25 +10,15 @@ const { InputSpec, Value } = sdk
 
 export const removeExposure = sdk.Action.withInput(
   'remove-serve',
-  async () => {
-    const config = await readGatewayConfig()
-
-    return {
-      name: 'Remove Serve',
-      description:
-        'Stop publishing one of the currently served StartOS services through Tailscale.',
-      warning:
-        config.routes.length > 0
-          ? 'This removes the selected Tailscale serve from this node.'
-          : null,
-      allowedStatuses: 'any',
-      group: 'Serve',
-      visibility:
-        config.routes.length > 0
-          ? 'enabled'
-          : { disabled: 'There are no saved Tailscale serves to remove.' },
-    }
-  },
+  async () => ({
+    name: 'Remove Serve',
+    description:
+      'Stop publishing one of the currently served StartOS services through Tailscale.',
+    warning: 'This removes the selected Tailscale serve from this node.',
+    allowedStatuses: 'any',
+    group: 'Serve',
+    visibility: 'enabled',
+  }),
   async () => {
     const config = await readGatewayConfig()
     const values = Object.fromEntries(
@@ -53,6 +43,12 @@ export const removeExposure = sdk.Action.withInput(
   async ({ effects, input }) => {
     const config = await readGatewayConfig()
     const removedRoute = config.routes.find((route) => route.id === input.routeId)
+
+    if (config.routes.length === 0) {
+      throw new Error(
+        'There are no saved Tailscale serves yet. Add one with the Add Serve action first.',
+      )
+    }
 
     if (!removedRoute) {
       throw new Error('That serve no longer exists.')
