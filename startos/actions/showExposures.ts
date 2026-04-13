@@ -4,66 +4,82 @@ import {
   readGatewayConfig,
   routeResultMembers,
 } from '../lib/gatewayConfig'
-import { routeDetailsForPlugin } from '../lib/tailscaleUrls'
+import { readCertStatus, explainCertError } from '../lib/certInfo'
+import { readTailnetHostname, tailnetUrlResult, buildTailnetUrl } from '../lib/tailscaleUrls'
 
 export const showExposures = sdk.Action.withoutInput(
-  'show-exposures',
+  'show-serves',
   async () => ({
-    name: 'Show Exposures',
+    name: 'Show Serves',
     description:
-      'Display the StartOS services currently being published through this Tailscale node.',
+      'Display the StartOS services currently being served through this Tailscale node.',
     warning: null,
     allowedStatuses: 'any',
-    group: 'Gateway',
+    group: 'Serve',
     visibility: 'enabled',
   }),
-  async ({ effects }) => {
+  async () => {
     const config = await readGatewayConfig()
+    const dnsName = await readTailnetHostname()
+    const cert = await readCertStatus()
+
+    const headerMembers: Array<{
+      name: string
+      description: string | null
+      type: 'single'
+      value: string
+      copyable: boolean
+      qr: boolean
+      masked: false
+    }> = []
+
+    if (cert.error) {
+      headerMembers.push({
+        name: 'HTTPS Certificate Warning',
+        description: explainCertError(cert.error),
+        type: 'single',
+        value: cert.error,
+        copyable: true,
+        qr: false,
+        masked: false,
+      })
+    }
 
     if (config.routes.length === 0) {
       return {
         version: '1' as const,
-        title: 'No Exposures',
+        title: 'No Serves',
         message:
-          'No StartOS services are currently being published through this Tailscale gateway.',
-        result: null,
+          'No StartOS services are currently being served through this Tailscale node.',
+        result:
+          headerMembers.length > 0
+            ? { type: 'group' as const, value: headerMembers }
+            : null,
       }
     }
 
     return {
       version: '1' as const,
-      title: 'Current Exposures',
+      title: 'Current Serves',
       message:
-        'These routes are served from this single Tailscale node after you sign the package into your tailnet.',
+        'These routes are served from this Tailscale node after the package is signed into your tailnet, using its MagicDNS name when available.',
       result: {
         type: 'group' as const,
-        value: await Promise.all(
-          config.routes.map(async (route) => {
-            const details = await routeDetailsForPlugin(effects, route)
-
-            return {
-              name: describeRoute(route),
-              description: null,
-              type: 'group' as const,
-              value: [
-                ...routeResultMembers(route),
-                {
-                  name: 'Tailnet Address',
-                  description:
-                    details?.url
-                      ? 'How this exposure is reached from other Tailscale devices.'
-                      : 'This will appear after the gateway is connected and MagicDNS is available.',
-                  type: 'single' as const,
-                  value:
-                    details?.url ?? 'Available after Tailscale login completes',
-                  copyable: Boolean(details?.url),
-                  qr: false,
-                  masked: false,
-                },
-              ],
-            }
-          }),
-        ),
+        value: [
+          ...headerMembers,
+          ...config.routes.map((route) => ({
+            name: describeRoute(route),
+            description: null,
+            type: 'group' as const,
+            value: [
+              ...routeResultMembers(route),
+              tailnetUrlResult(
+                route,
+                dnsName ? buildTailnetUrl(route, dnsName) : null,
+              ),
+            ],
+          })),
+        ],
       },
     }
   },

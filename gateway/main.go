@@ -87,7 +87,7 @@ func runProxy(args []string) error {
 	for _, rt := range cfg.Routes {
 		rt := rt
 		switch rt.Mode {
-		case "http":
+		case "http", "https":
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -95,7 +95,7 @@ func runProxy(args []string) error {
 					log.Printf("http proxy for %s failed: %v", rt.ID, err)
 				}
 			}()
-		case "tcp":
+		case "tcp", "tls-terminated-tcp":
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -140,18 +140,25 @@ func runApply(args []string) error {
 		switch rt.Mode {
 		case "http":
 			target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
-			flag := fmt.Sprintf("--http=%d", rt.ExternalPort)
-			if rt.TargetScheme == "https+insecure" {
-				flag = fmt.Sprintf("--https=%d", rt.ExternalPort)
-			}
 			if err := runTailCommand(
 				*socketPath,
 				"serve",
 				"--bg",
-				flag,
+				fmt.Sprintf("--http=%d", rt.ExternalPort),
 				target,
 			); err != nil {
 				return fmt.Errorf("apply http route %s: %w", rt.ID, err)
+			}
+		case "https":
+			target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
+			if err := runTailCommand(
+				*socketPath,
+				"serve",
+				"--bg",
+				fmt.Sprintf("--https=%d", rt.ExternalPort),
+				target,
+			); err != nil {
+				return fmt.Errorf("apply https route %s: %w", rt.ID, err)
 			}
 		case "tcp":
 			target := fmt.Sprintf("tcp://127.0.0.1:%d", rt.LocalPort)
@@ -163,6 +170,17 @@ func runApply(args []string) error {
 				target,
 			); err != nil {
 				return fmt.Errorf("apply tcp route %s: %w", rt.ID, err)
+			}
+		case "tls-terminated-tcp":
+			target := fmt.Sprintf("tcp://127.0.0.1:%d", rt.LocalPort)
+			if err := runTailCommand(
+				*socketPath,
+				"serve",
+				"--bg",
+				fmt.Sprintf("--tls-terminated-tcp=%d", rt.ExternalPort),
+				target,
+			); err != nil {
+				return fmt.Errorf("apply tls-terminated-tcp route %s: %w", rt.ID, err)
 			}
 		default:
 			return fmt.Errorf("unknown mode %q for route %s", rt.Mode, rt.ID)

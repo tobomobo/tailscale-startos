@@ -22,7 +22,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   console.info(i18n('Starting Tailscale'))
   if (refresh.changed > 0) {
     console.info(
-      `Refreshed ${refresh.changed} saved Tailscale exposure target${
+      `Refreshed ${refresh.changed} saved Tailscale serve target${
         refresh.changed === 1 ? '' : 's'
       }.`,
     )

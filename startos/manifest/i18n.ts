@@ -4,5 +4,5 @@ export const short = {
 
 export const long = {
   en_US:
-    'Tailscale on StartOS packages the official Tailscale client as a persistent gateway service. Sign in once with a device-independent login link, then choose which installed StartOS service interfaces should be reachable through this Tailscale node. This package does not automatically expose the whole StartOS host or every installed service.',
+    'Tailscale on StartOS packages the official Tailscale client as a persistent service that uses Tailscale Serve. Sign in once with a device-independent login link, then choose which installed StartOS service interfaces should be served through this Tailscale node. This package does not automatically publish the whole StartOS host or every installed service.',
 }

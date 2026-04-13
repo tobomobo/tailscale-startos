@@ -5,8 +5,8 @@ This repository packages Tailscale for StartOS.
 ## Goal
 
 - Ship a StartOS package that runs a single persistent Tailscale gateway node.
-- Sign in once, then expose selected StartOS service interfaces through that node.
-- Surface exposed service URLs back into StartOS with the `url-v0` plugin path where supported.
+- Sign in once, then serve selected StartOS service interfaces through that node using Tailscale Serve.
+- Surface served service URLs back into StartOS with the `url-v0` plugin path where supported.
 
 ## Stack
 
@@ -31,7 +31,8 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
 
 - [startos/main.ts](/Users/dev/Github/tailscale-startos/startos/main.ts): daemon setup and health checks
 - [startos/actions](/Users/dev/Github/tailscale-startos/startos/actions): StartOS actions
-- [startos/lib/gatewayConfig.ts](/Users/dev/Github/tailscale-startos/startos/lib/gatewayConfig.ts): saved exposure model
+- [startos/lib/gatewayConfig.ts](/Users/dev/Github/tailscale-startos/startos/lib/gatewayConfig.ts): saved serve model
+- [startos/lib/certInfo.ts](/Users/dev/Github/tailscale-startos/startos/lib/certInfo.ts): HTTPS cert probe status
 - [startos/lib/loginInfo.ts](/Users/dev/Github/tailscale-startos/startos/lib/loginInfo.ts): status/login sidecar files
 - [startos/lib/deviceName.ts](/Users/dev/Github/tailscale-startos/startos/lib/deviceName.ts): persisted Tailscale device-name override
 - [startos/lib/tailscaleUrls.ts](/Users/dev/Github/tailscale-startos/startos/lib/tailscaleUrls.ts): MagicDNS/plugin URL helpers
@@ -57,7 +58,7 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
 - Normal package updates should preserve login state as long as the package id and state path stay the same.
 - Login links are requested automatically on startup when the node is not signed in.
 - Logged-out startup must gate on `tailscale status --json`, not plain `tailscale status`, because plain status exits nonzero while logged out.
-- Exposed HTTP services that advertise SSL in StartOS should use Tailscale HTTPS (`--https`) so port `443` on the MagicDNS hostname behaves cleanly.
+- HTTPS serves rely on the tailnet having HTTPS Certificates enabled in the Tailscale admin console. The entrypoint probes `tailscale cert` periodically and writes either `tailscale-cert.ok` or `tailscale-cert.stderr` in the state dir; the `add-serve` and `show-device-info` actions surface that error verbatim so users know what to fix.
 
 ## StartOS SDK Boundaries
 
@@ -72,8 +73,8 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
   - show device info
   - show/refresh login link
   - set preferred device name
-- `Gateway` actions:
-  - add/remove/show exposures
+- `Serve` actions:
+  - add/remove/show serves
   - refresh targets
 - Interface-table integration:
   - quick add/remove path through the `url-v0` plugin

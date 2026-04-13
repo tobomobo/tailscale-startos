@@ -21,11 +21,11 @@ function pluginMetadataFromInput(input: unknown): UrlPluginRowMetadata {
 }
 
 export const removeExposureFromUrl = sdk.Action.withoutInput(
-  'remove-exposure-from-url',
+  'remove-serve-from-url',
   async () => ({
-    name: 'Remove Tailscale Address',
+    name: 'Stop Tailscale Serve',
     description:
-      'Stop publishing this interface through the Tailscale gateway package.',
+      'Stop serving this interface through the Tailscale gateway package.',
     warning: null,
     allowedStatuses: 'any',
     group: null,
@@ -40,7 +40,7 @@ export const removeExposureFromUrl = sdk.Action.withoutInput(
       (await findRouteByBinding(effects, metadata))
 
     if (!route) {
-      throw new Error('That Tailscale exposure no longer exists.')
+      throw new Error('That Tailscale serve no longer exists.')
     }
 
     await writeGatewayConfig({
@@ -51,9 +51,9 @@ export const removeExposureFromUrl = sdk.Action.withoutInput(
 
     return {
       version: '1' as const,
-      title: 'Tailscale Exposure Removed',
+      title: 'Tailscale Serve Removed',
       message:
-        'The gateway will stop publishing this interface over Tailscale within a few seconds.',
+        'This node will stop serving that interface over Tailscale within a few seconds.',
       result: {
         type: 'single' as const,
         value: describeRoute(route),

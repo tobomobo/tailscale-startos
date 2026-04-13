@@ -8,6 +8,9 @@ STATUS_FILE="${STATE_DIR}/tailscale-status.json"
 LOGIN_FILE="${STATE_DIR}/tailscale-login.json"
 LOGIN_REQUEST_FILE="${STATE_DIR}/tailscale-login-request"
 LOGIN_ERROR_FILE="${STATE_DIR}/tailscale-login.stderr"
+CERT_OK_FILE="${STATE_DIR}/tailscale-cert.ok"
+CERT_ERROR_FILE="${STATE_DIR}/tailscale-cert.stderr"
+CERT_PROBE_INTERVAL=3600
 LOGIN_TIMEOUT=30s
 TAILSCALE_DEVICE_NAME="${TAILSCALE_DEVICE_NAME:-}"
 
@@ -60,6 +63,52 @@ current_auth_url() {
   fi
 
   sed -n 's/.*"AuthURL"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${STATUS_FILE}" | head -n 1
+}
+
+current_dns_name() {
+  if [ ! -f "${STATUS_FILE}" ]; then
+    return 0
+  fi
+
+  sed -n 's/.*"DNSName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${STATUS_FILE}" | head -n 1
+}
+
+probe_https_cert() {
+  BACKEND_STATE=$(current_backend_state)
+  if [ "${BACKEND_STATE}" != "Running" ]; then
+    return 0
+  fi
+
+  DNS_NAME=$(current_dns_name)
+  DNS_NAME="${DNS_NAME%.}"
+  if [ -z "${DNS_NAME}" ]; then
+    return 0
+  fi
+
+  NOW=$(date +%s 2>/dev/null || echo 0)
+  if [ -f "${CERT_OK_FILE}" ]; then
+    OK_MTIME=$(stat -c %Y "${CERT_OK_FILE}" 2>/dev/null || stat -f %m "${CERT_OK_FILE}" 2>/dev/null || echo 0)
+    AGE=$(( NOW - OK_MTIME ))
+    if [ "${AGE}" -lt "${CERT_PROBE_INTERVAL}" ] && [ "${AGE}" -ge 0 ]; then
+      return 0
+    fi
+  fi
+
+  TMPDIR_CERT=$(mktemp -d 2>/dev/null || echo "${STATE_DIR}/cert-probe")
+  mkdir -p "${TMPDIR_CERT}"
+  if tailscale --socket="${SOCKET}" cert \
+      --cert-file="${TMPDIR_CERT}/cert" \
+      --key-file="${TMPDIR_CERT}/key" \
+      "${DNS_NAME}" > "${CERT_ERROR_FILE}.tmp" 2>&1; then
+    rm -f "${CERT_ERROR_FILE}" "${CERT_ERROR_FILE}.tmp"
+    date -u +"%Y-%m-%dT%H:%M:%SZ" > "${CERT_OK_FILE}" 2>/dev/null || echo "ok" > "${CERT_OK_FILE}"
+  else
+    mv "${CERT_ERROR_FILE}.tmp" "${CERT_ERROR_FILE}"
+    rm -f "${CERT_OK_FILE}"
+    echo "HTTPS certificate probe failed for ${DNS_NAME}:" >&2
+    cat "${CERT_ERROR_FILE}" >&2 || true
+  fi
+  rm -rf "${TMPDIR_CERT}"
 }
 
 current_device_name() {
@@ -219,6 +268,7 @@ while kill -0 "${TAILSCALED_PID}" 2>/dev/null; do
 
   refresh_login_state
   reconcile_device_name
+  probe_https_cert
 
   if [ "${CURRENT_HASH}" != "${LAST_PROXY_HASH}" ] || ! kill -0 "${PROXY_PID}" 2>/dev/null; then
     LAST_PROXY_HASH="${CURRENT_HASH}"

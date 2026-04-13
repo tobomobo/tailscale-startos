@@ -1,4 +1,5 @@
 import { readDeviceName } from '../lib/deviceName'
+import { readCertStatus, explainCertError } from '../lib/certInfo'
 import { readStatusInfo } from '../lib/loginInfo'
 import { sdk } from '../sdk'
 import { syncExportedUrls } from '../urlPlugin'
@@ -15,9 +16,10 @@ export const showDeviceInfo = sdk.Action.withoutInput(
     visibility: 'enabled',
   }),
   async ({ effects }) => {
-    const [status, preferredDeviceName] = await Promise.all([
+    const [status, preferredDeviceName, cert] = await Promise.all([
       readStatusInfo(),
       readDeviceName(),
+      readCertStatus(),
     ])
 
     if (!status) {
@@ -97,6 +99,24 @@ export const showDeviceInfo = sdk.Action.withoutInput(
             ? tailscaleIps.join(', ')
             : 'Not available until login completes',
         copyable: tailscaleIps.length > 0,
+        qr: false,
+        masked: false,
+      },
+      {
+        name: 'HTTPS Certificates',
+        description:
+          cert.ready
+            ? 'Tailscale can issue HTTPS certs for this node. HTTPS serves will work automatically.'
+            : cert.error
+              ? explainCertError(cert.error)
+              : 'HTTPS certificate status is not known yet. Sign in and wait a few seconds, then check again.',
+        type: 'single' as const,
+        value: cert.ready
+          ? `Ready${cert.lastOkAt ? ` (last verified ${cert.lastOkAt})` : ''}`
+          : cert.error
+            ? cert.error
+            : 'Not verified yet',
+        copyable: Boolean(cert.error),
         qr: false,
         masked: false,
       },

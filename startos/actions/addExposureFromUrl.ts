@@ -1,8 +1,10 @@
 import { sdk } from '../sdk'
 import {
+  readGatewayConfig,
+  resolveExposureRoute,
   routeResultMembers,
+  writeGatewayConfig,
 } from '../lib/gatewayConfig'
-import { readGatewayConfig, resolveExposureRoute, writeGatewayConfig } from '../lib/gatewayConfig'
 import {
   chooseSuggestedExternalPort,
   defaultExternalPortForInterface as defaultTailnetPort,
@@ -29,11 +31,11 @@ function pluginMetadataFromInput(input: unknown): UrlPluginTableMetadata {
 }
 
 export const addExposureFromUrl = sdk.Action.withoutInput(
-  'add-exposure-from-url',
+  'add-serve-from-url',
   async () => ({
-    name: 'Add Tailscale Address',
+    name: 'Serve On Tailscale',
     description:
-      'Quickly publish this interface through the Tailscale gateway using a sensible default port.',
+      'Quickly serve this interface through the Tailscale node using a sensible default port.',
     warning: null,
     allowedStatuses: 'any',
     group: null,
@@ -48,14 +50,14 @@ export const addExposureFromUrl = sdk.Action.withoutInput(
 
       return {
         version: '1' as const,
-        title: 'Already Published',
+        title: 'Already Serving',
         message:
-          'This service already has a Tailscale exposure managed by the gateway package.',
+          'This service already has a Tailscale serve managed by the gateway package.',
         result: {
           type: 'group' as const,
           value: [
             {
-              name: 'Existing Exposure',
+              name: 'Existing Serve',
               description: null,
               type: 'group' as const,
               value: [
@@ -93,11 +95,10 @@ export const addExposureFromUrl = sdk.Action.withoutInput(
     }
 
     const config = await readGatewayConfig()
-    const mode =
+    const supportsHttp =
       serviceInterface.addressInfo.scheme?.startsWith('http') ||
       serviceInterface.addressInfo.sslScheme?.startsWith('http')
-        ? 'http'
-        : 'tcp'
+    const mode = supportsHttp ? 'https' : 'tcp'
 
     const suggestedPort = chooseSuggestedExternalPort(
       config.routes,
@@ -122,14 +123,14 @@ export const addExposureFromUrl = sdk.Action.withoutInput(
 
     return {
       version: '1' as const,
-      title: 'Tailscale Exposure Added',
+      title: 'Tailscale Serve Added',
       message:
-        'The gateway saved a default Tailscale exposure for this interface. Use the main Gateway actions if you want a custom port or mode instead.',
+        'The gateway saved a default Tailscale serve for this interface. Use the main Serve actions if you want a custom port or mode instead.',
       result: {
         type: 'group' as const,
         value: [
           {
-            name: 'New Exposure',
+            name: 'New Serve',
             description: null,
             type: 'group' as const,
             value: [

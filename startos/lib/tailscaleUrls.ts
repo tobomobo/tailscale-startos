@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import type { ExposureRoute } from './gatewayConfig'
-import { readGatewayConfig } from './gatewayConfig'
+import { readGatewayConfig, serveUsesTailnetTls } from './gatewayConfig'
 import type { StatusInfo } from './loginInfo'
 import { readStatusInfo } from './loginInfo'
 
@@ -38,18 +38,14 @@ export async function readTailnetHostname(): Promise<string | null> {
   return normalizeDnsName(status?.Self?.DNSName)
 }
 
-export function routeUsesTailnetHttps(route: ExposureRoute): boolean {
-  return route.mode === 'http' && route.targetScheme === 'https+insecure'
-}
-
 export function buildTailnetUrl(route: ExposureRoute, dnsName: string): string {
-  if (route.mode === 'tcp') {
+  if (route.mode === 'tcp' || route.mode === 'tls-terminated-tcp') {
     const host =
       dnsName.includes(':') && !dnsName.startsWith('[') ? `[${dnsName}]` : dnsName
     return `${host}:${route.externalPort}`
   }
 
-  const scheme = routeUsesTailnetHttps(route) ? 'https' : 'http'
+  const scheme = route.mode === 'https' ? 'https' : 'http'
   const defaultPort = scheme === 'https' ? 443 : 80
   const portSuffix =
     route.externalPort === defaultPort ? '' : `:${route.externalPort}`
@@ -84,7 +80,7 @@ export function chooseSuggestedExternalPort(
     }
   }
 
-  throw new Error('No free published ports remain for new Tailscale exposures.')
+  throw new Error('No free published ports remain for new Tailscale serves.')
 }
 
 export async function findRouteByBinding(
@@ -145,12 +141,10 @@ export async function routeDetailsForPlugin(
     return null
   }
 
-  const ssl =
-    routeUsesTailnetHttps(route) &&
-    Boolean(serviceInterface.addressInfo.sslScheme?.startsWith('http'))
+  const ssl = serveUsesTailnetTls(route.mode)
 
   const port =
-    route.mode === 'tcp'
+    route.mode === 'tcp' || route.mode === 'tls-terminated-tcp'
       ? route.externalPort
       : ssl
         ? route.externalPort === 443
@@ -189,7 +183,7 @@ export function tailnetUrlResult(
     description:
       url === null
         ? 'This will appear after the gateway is connected and MagicDNS is available.'
-        : 'How this exposure is reached from other Tailscale devices.',
+        : 'How this serve is reached from other Tailscale devices.',
     type: 'single',
     value: url ?? 'Available after Tailscale login completes',
     copyable: url !== null,

@@ -9,24 +9,24 @@ import { syncExportedUrls } from '../urlPlugin'
 const { InputSpec, Value } = sdk
 
 export const removeExposure = sdk.Action.withInput(
-  'remove-exposure',
+  'remove-serve',
   async () => {
     const config = await readGatewayConfig()
 
     return {
-      name: 'Remove Exposure',
+      name: 'Remove Serve',
       description:
-        'Stop publishing one of the currently exposed StartOS services through Tailscale.',
+        'Stop publishing one of the currently served StartOS services through Tailscale.',
       warning:
         config.routes.length > 0
-          ? 'This removes the selected Tailscale exposure from this gateway node.'
+          ? 'This removes the selected Tailscale serve from this node.'
           : null,
       allowedStatuses: 'any',
-      group: 'Gateway',
+      group: 'Serve',
       visibility:
         config.routes.length > 0
           ? 'enabled'
-          : { disabled: 'There are no saved Tailscale exposures to remove.' },
+          : { disabled: 'There are no saved Tailscale serves to remove.' },
     }
   },
   async () => {
@@ -38,14 +38,14 @@ export const removeExposure = sdk.Action.withInput(
 
     return InputSpec.of({
       routeId: Value.dynamicSelect(async () => ({
-        name: 'Exposure',
-        description: 'Choose the saved exposure you want to remove.',
+        name: 'Serve',
+        description: 'Choose the saved serve you want to remove.',
         default: defaultRoute,
         values,
         disabled:
           config.routes.length > 0
             ? false
-            : 'There are no saved Tailscale exposures to remove.',
+            : 'There are no saved Tailscale serves to remove.',
       })),
     })
   },
@@ -55,7 +55,7 @@ export const removeExposure = sdk.Action.withInput(
     const removedRoute = config.routes.find((route) => route.id === input.routeId)
 
     if (!removedRoute) {
-      throw new Error('That exposure no longer exists.')
+      throw new Error('That serve no longer exists.')
     }
 
     await writeGatewayConfig({
@@ -66,9 +66,9 @@ export const removeExposure = sdk.Action.withInput(
 
     return {
       version: '1' as const,
-      title: 'Exposure Removed',
+      title: 'Serve Removed',
       message:
-        'The Tailscale gateway will stop serving that route within a few seconds.',
+        'This Tailscale node will stop serving that route within a few seconds.',
       result: {
         type: 'single' as const,
         value: describeRoute(removedRoute),

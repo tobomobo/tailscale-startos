@@ -19,20 +19,21 @@ It is an independent StartOS packaging project and is not affiliated with or end
 
 ## What This Package Does
 
-This package gives StartOS a persistent Tailscale gateway node. The sign-in flow is a device-independent login link exposed through StartOS actions.
+This package gives StartOS a persistent Tailscale node that uses Tailscale Serve to publish selected StartOS services. The sign-in flow is a device-independent login link surfaced through StartOS actions.
 
 ## Current Scope
 
 - Builds a small wrapper image on top of the official `ghcr.io/tailscale/tailscale` base image
 - Persists Tailscale state in the `main` volume
-- Automatically requests a device-independent Tailscale login link on startup when the gateway is not signed in
-- Lets one signed-in Tailscale node publish selected installed StartOS service interfaces
-- Registers as a `url-v0` plugin so exposed services can appear in StartOS interface tables like Tor-managed onion addresses
+- Automatically requests a device-independent Tailscale login link on startup when the node is not signed in
+- Lets one signed-in Tailscale node serve selected installed StartOS service interfaces
+- Registers as a `url-v0` plugin so served services can appear in StartOS interface tables like Tor-managed onion addresses
+- Probes Tailscale HTTPS certificate issuance after login and surfaces any error verbatim
 - Backs up and restores the persistent state volume
 
 ## Important Limitation
 
-This package runs Tailscale inside a normal StartOS service container in userspace mode. That means it creates a Tailscale node for the package itself, and uses that node as a gateway for selected StartOS services. It does **not** automatically turn the whole StartOS host into a subnet router or publish every installed service over Tailscale.
+This package runs Tailscale inside a normal StartOS service container in userspace mode. That means it creates a Tailscale node for the package itself, and uses Tailscale Serve from that node to publish selected StartOS services. It does **not** automatically turn the whole StartOS host into a subnet router or publish every installed service over Tailscale.
 
 That limitation matters if your goal is something closer to StartTunnel-style host or network ingress. A standard service package can get you a Tailscale-connected container and UI today, but a true host-level Tailscale integration would likely need platform-level networking support beyond a normal package.
 
@@ -58,43 +59,51 @@ make install
 ## First Run
 
 1. Install and start the service.
-2. Wait a few seconds for the gateway to request its initial login link automatically.
+2. Wait a few seconds for the node to request its initial login link automatically.
 3. Run `Show Login Link` from the `Access` action group.
 4. Open or scan that link on any trusted device and complete the Tailscale login flow.
-5. Use the `Gateway` actions to add one or more StartOS service exposures.
-6. Reach those services through this single Tailscale node.
+5. Enable **HTTPS Certificates** for your tailnet in the Tailscale admin console (DNS → HTTPS). Without this, HTTPS serves cannot get a TLS cert.
+6. Use the `Serve` actions to add one or more StartOS service serves.
+7. Reach those services through this single Tailscale node's MagicDNS name.
 
-If `Show Login Link` still says the link is being generated, wait a few seconds or run `Refresh Login Link` to force a fresh request. If the request fails, the action now shows the captured error output directly.
+If `Show Login Link` still says the link is being generated, wait a few seconds or run `Refresh Login Link` to force a fresh request. If the request fails, the action shows the captured error output directly. If HTTPS certificate issuance is failing, `Show Device Info` shows the exact error from `tailscale cert`.
 
 ## Access Actions
 
-- `Set Device Name`: choose the Tailscale machine name and MagicDNS prefix this gateway should use
-- `Show Device Info`: display the current backend state, MagicDNS name, Tailscale IPs, and tailnet details for this node
+- `Set Device Name`: choose the Tailscale machine name and MagicDNS prefix this node should use
+- `Show Device Info`: display the current backend state, MagicDNS name, Tailscale IPs, tailnet details, and HTTPS certificate status for this node
 - `Show Login Link`: display the current device-independent Tailscale login link as copyable text and QR, or show the latest request error
 - `Refresh Login Link`: force a fresh login-link request if the previous link expired, was missed, or failed to generate
 
-## Gateway Actions
+## Serve Actions
 
-- `Add Exposure`: publish one installed StartOS interface through this Tailscale node
-- `Remove Exposure`: stop publishing a saved route
-- `Show Exposures`: inspect the routes this gateway is currently managing
+- `Add Serve`: publish one installed StartOS interface through this Tailscale node using Tailscale Serve (HTTPS, HTTP, TCP, or TLS-terminated TCP)
+- `Remove Serve`: stop publishing a saved route
+- `Show Serves`: inspect the serves this node is currently managing, and surface any HTTPS certificate warnings
 - `Refresh Targets`: re-resolve target container IPs if a destination service has restarted
 
-The StartOS interface URL table also gains a quick Tailscale action when this package is installed. That path adds a default exposure directly from the target service's URL table, and the resulting `Plugin: Tailscale` entries point back at the gateway node's MagicDNS hostname.
+The StartOS interface URL table also gains a quick **Serve On Tailscale** action when this package is installed. That path adds a default serve directly from the target service's URL table, and the resulting `Plugin: Tailscale` entries point back at this node's MagicDNS hostname.
+
+## Serve Modes
+
+- **HTTPS** — Tailscale Serve publishes the interface at `https://<magicdns>:<port>` with a Tailscale-managed TLS certificate. Requires HTTPS Certificates to be enabled for your tailnet in the admin console.
+- **HTTP** — plain HTTP without TLS. Fine for trusted tailnets where you do not need HTTPS.
+- **TLS-terminated TCP** — Tailscale terminates TLS and forwards the raw stream. Use this for services whose clients can speak TLS natively (e.g. TLS-capable RPC or database clients).
+- **Raw TCP** — pass-through TCP forwarder without TLS.
 
 ## Notes
 
-- One Tailscale sign-in covers the whole gateway package.
-- Exposed services are explicit, not automatic.
+- One Tailscale sign-in covers the whole package.
+- Served services are explicit, not automatic.
 - The package intentionally pins a specific upstream Tailscale container version so builds stay reproducible.
-- Web interfaces that already advertise SSL in StartOS are published through Tailscale's HTTPS path, so port `443` on the MagicDNS hostname works cleanly for those routes.
-- HTTP mode is intended for web apps and APIs.
-- TCP mode is intended for raw TCP services such as RPC ports or databases.
-- If Tailscale Serve is not yet enabled for your tailnet, check the Tailscale package logs after adding an exposure.
+- HTTPS mode requires HTTPS Certificates enabled on the tailnet. The node probes issuance periodically and surfaces the Tailscale error verbatim if HTTPS is not enabled.
+- If Tailscale Serve is not yet enabled for your tailnet, check the Tailscale package logs after adding a serve.
 
 ## Upstream References
 
 - [Start9 Packaging Guide](https://docs.start9.com/packaging/)
 - [Tailscale Docker docs](https://tailscale.com/docs/features/containers/docker/how-to/connect-docker-standalone)
 - [Tailscale quickstart](https://tailscale.com/kb/1346/start)
+- [Tailscale Serve docs](https://tailscale.com/kb/1242/tailscale-serve)
+- [Tailscale HTTPS Certificates](https://tailscale.com/kb/1153/enabling-https)
 - [Tailscale favicon asset](https://tailscale.com/favicon.svg)

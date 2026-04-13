@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import { z } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
 
-const exposureModeSchema = z.enum(['http', 'tcp'])
+const exposureModeSchema = z.enum(['https', 'http', 'tcp', 'tls-terminated-tcp'])
 const exposureTargetSchemeSchema = z.enum(['http', 'https+insecure', 'tcp'])
 const serviceInterfaceTypeSchema = z.enum(['ui', 'api', 'p2p'])
 
@@ -46,6 +46,27 @@ const CONFIG_PATH = sdk.volumes.main.subpath('gateway-routes.json')
 const LOCAL_PORT_START = 20_000
 const LOCAL_PORT_END = 39_999
 
+export function serveModeLabel(mode: ExposureMode): string {
+  switch (mode) {
+    case 'https':
+      return 'HTTPS'
+    case 'http':
+      return 'HTTP'
+    case 'tcp':
+      return 'TCP'
+    case 'tls-terminated-tcp':
+      return 'TLS-TCP'
+  }
+}
+
+export function isHttpServeMode(mode: ExposureMode): boolean {
+  return mode === 'https' || mode === 'http'
+}
+
+export function serveUsesTailnetTls(mode: ExposureMode): boolean {
+  return mode === 'https' || mode === 'tls-terminated-tcp'
+}
+
 export async function readGatewayConfig(): Promise<GatewayConfig> {
   try {
     const raw = await fs.readFile(CONFIG_PATH, 'utf8')
@@ -86,7 +107,7 @@ export function decodeInterfaceKey(
 }
 
 export function describeRoute(route: ExposureRoute): string {
-  return `${route.packageTitle} -> ${route.interfaceName} (${route.mode.toUpperCase()} on port ${route.externalPort})`
+  return `${route.packageTitle} -> ${route.interfaceName} (${serveModeLabel(route.mode)} on port ${route.externalPort})`
 }
 
 function resolveHttpTargetScheme(addressInfo: {
@@ -179,14 +200,14 @@ export async function resolveExposureRoute(
     )
   }
 
-  if (options.mode === 'http') {
+  if (isHttpServeMode(options.mode)) {
     const supportsHttp =
       serviceInterface.addressInfo.scheme?.startsWith('http') ||
       serviceInterface.addressInfo.sslScheme?.startsWith('http')
 
     if (!supportsHttp) {
       throw new Error(
-        `The selected interface does not advertise HTTP. Use TCP mode instead.`,
+        `The selected interface does not advertise HTTP. Use a TCP-based serve mode instead.`,
       )
     }
   }
@@ -224,10 +245,9 @@ export async function resolveExposureRoute(
       preservedLocalPort ?? allocateLocalPort(options.existingRoutes),
     targetHost: containerIp,
     targetPort: serviceInterface.addressInfo.internalPort,
-    targetScheme:
-      options.mode === 'http'
-        ? resolveHttpTargetScheme(serviceInterface.addressInfo)
-        : 'tcp',
+    targetScheme: isHttpServeMode(options.mode)
+      ? resolveHttpTargetScheme(serviceInterface.addressInfo)
+      : 'tcp',
   }
 }
 
@@ -279,7 +299,7 @@ export function routeResultMembers(route: ExposureRoute) {
   return [
     {
       name: 'Published Port',
-      description: 'The port exposed on this Tailscale gateway node',
+      description: 'The port served on this Tailscale node',
       type: 'single' as const,
       value: String(route.externalPort),
       copyable: true,
@@ -287,10 +307,10 @@ export function routeResultMembers(route: ExposureRoute) {
       masked: false,
     },
     {
-      name: 'Mode',
+      name: 'Serve Mode',
       description: null,
       type: 'single' as const,
-      value: route.mode.toUpperCase(),
+      value: serveModeLabel(route.mode),
       copyable: false,
       qr: false,
       masked: false,
