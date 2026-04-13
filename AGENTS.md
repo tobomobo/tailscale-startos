@@ -4,7 +4,7 @@ This repository packages Tailscale for StartOS.
 
 ## Goal
 
-- Ship a StartOS package that runs a single persistent Tailscale gateway node.
+- Ship a StartOS package that runs a single persistent Tailscale node.
 - Sign in once, then serve selected StartOS service interfaces through that node using Tailscale Serve.
 - Surface served service URLs back into StartOS with the `url-v0` plugin path where supported.
 
@@ -13,7 +13,7 @@ This repository packages Tailscale for StartOS.
 - StartOS SDK: `@start9labs/start-sdk@1.0.0`
 - Package manager: `npm`
 - TypeScript bundle output: `javascript/`
-- Package build: `make`, `make x86`, `make arm`, `make riscv`
+- Package build: `make`, `make x86`, `make arm` (riscv64 intentionally excluded — upstream `ghcr.io/tailscale/tailscale` has no riscv64 image)
 - Container runtime: custom wrapper image on top of `ghcr.io/tailscale/tailscale`
 - Helper binary: Go code in `gateway/`
 
@@ -38,7 +38,7 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
 - [startos/lib/tailscaleUrls.ts](/Users/dev/Github/tailscale-startos/startos/lib/tailscaleUrls.ts): MagicDNS/plugin URL helpers
 - [startos/urlPlugin.ts](/Users/dev/Github/tailscale-startos/startos/urlPlugin.ts): `url-v0` plugin registration/export sync
 - [docker_entrypoint.sh](/Users/dev/Github/tailscale-startos/docker_entrypoint.sh): login/bootstrap loop and route apply loop
-- [gateway/main.go](/Users/dev/Github/tailscale-startos/gateway/main.go): local proxy listeners and `tailscale serve` application
+- [gateway/main.go](/Users/dev/Github/tailscale-startos/gateway/main.go): local proxy listeners and `tailscale serve` / `tailscale funnel` application
 - [startos/manifest/index.ts](/Users/dev/Github/tailscale-startos/startos/manifest/index.ts): package manifest
 - [startos/versions](/Users/dev/Github/tailscale-startos/startos/versions): version graph and release notes
 
@@ -59,6 +59,8 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
 - Login links are requested automatically on startup when the node is not signed in.
 - Logged-out startup must gate on `tailscale status --json`, not plain `tailscale status`, because plain status exits nonzero while logged out.
 - HTTPS serves rely on the tailnet having HTTPS Certificates enabled in the Tailscale admin console. The entrypoint probes `tailscale cert` periodically and writes either `tailscale-cert.ok` or `tailscale-cert.stderr` in the state dir; the `add-serve` and `show-device-info` actions surface that error verbatim so users know what to fix.
+- Funnel state is stored separately from serve state in tailscaled. The Go apply loop calls `tailscale serve reset` AND `tailscale funnel reset` on every config change, otherwise removed funnel routes keep serving.
+- Apply failures are collected per-route instead of aborting the whole apply; the stderr is persisted to `/var/lib/tailscale/tailscale-apply.stderr` and logged once per backoff window.
 
 ## StartOS SDK Boundaries
 
@@ -79,6 +81,12 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
   - modes: HTTPS, Funnel (public internet, ports 443/8443/10000 only), HTTP, TCP, TLS-terminated TCP
 - Interface-table integration:
   - quick add/remove path through the `url-v0` plugin
+
+## CI
+
+- Both workflows pin `Start9Labs/sdk@v2.1` — older `@v1`/`@v2` tags fetch a stale `start-cli` asset name and fail. Do not "upgrade" to `@v2` thinking it's newer; v2.1 is the currently-working pin.
+- Both workflows run `start-cli init-key` before `make` because the local `check-init` target only triggers on `make install`, not on `make`.
+- Build-on-push and release-on-tag are both green; tags matching `v*.*` produce a GitHub Release with x86_64 + aarch64 s9pks and sha256 sidecars, marked prerelease by default.
 
 ## Before You Finish A Change
 

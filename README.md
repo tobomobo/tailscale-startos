@@ -42,15 +42,16 @@ The same SDK limitation applies to the StartOS system dashboard itself: this pac
 ## Build
 
 ```bash
-npm install
 make
 ```
 
-This creates a `.s9pk` in the project root.
+This creates x86_64 and aarch64 `.s9pk` files in the project root. (`make` invokes `npm ci` on its own via the `node_modules` rule, so no separate `npm install` step is needed.)
 
 ## Install
 
-You can sideload the built `.s9pk` from the StartOS UI, or use:
+Download a prebuilt `.s9pk` for your arch from the [Releases page](https://github.com/tobomobo/tailscale-startos/releases) and sideload it from the StartOS UI. Supported arches are **x86_64** and **aarch64** (upstream Tailscale does not publish a riscv64 container).
+
+Or build locally and install with:
 
 ```bash
 make install
