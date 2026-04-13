@@ -45,7 +45,8 @@ export function buildTailnetUrl(route: ExposureRoute, dnsName: string): string {
     return `${host}:${route.externalPort}`
   }
 
-  const scheme = route.mode === 'https' ? 'https' : 'http'
+  const scheme =
+    route.mode === 'https' || route.mode === 'funnel' ? 'https' : 'http'
   const defaultPort = scheme === 'https' ? 443 : 80
   const portSuffix =
     route.externalPort === defaultPort ? '' : `:${route.externalPort}`
@@ -178,12 +179,15 @@ export function tailnetUrlResult(
   qr: boolean
   masked: false
 } {
+  const isFunnel = route.mode === 'funnel'
   return {
-    name: 'Tailnet Address',
+    name: isFunnel ? 'Public Internet Address' : 'Tailnet Address',
     description:
       url === null
         ? 'This will appear after the gateway is connected and MagicDNS is available.'
-        : 'How this serve is reached from other Tailscale devices.',
+        : isFunnel
+          ? 'PUBLIC URL — reachable by anyone on the open internet. Revoke by removing the serve.'
+          : 'How this serve is reached from other Tailscale devices.',
     type: 'single',
     value: url ?? 'Available after Tailscale login completes',
     copyable: url !== null,

@@ -74,8 +74,9 @@ Prefer `make -B x86` for the quickest full packaging check on macOS.
   - show/refresh login link
   - set preferred device name
 - `Serve` actions:
-  - add/remove/show serves
+  - add/edit/remove/show serves
   - refresh targets
+  - modes: HTTPS, Funnel (public internet, ports 443/8443/10000 only), HTTP, TCP, TLS-terminated TCP
 - Interface-table integration:
   - quick add/remove path through the `url-v0` plugin
 

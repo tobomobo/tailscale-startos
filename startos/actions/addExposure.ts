@@ -1,8 +1,9 @@
 import { sdk } from '../sdk'
 import {
+  assertFunnelPort,
   decodeInterfaceKey,
   describeRoute,
-  isHttpServeMode,
+  isFunnelMode,
   listCandidateInterfaces,
   readGatewayConfig,
   resolveExposureRoute,
@@ -62,10 +63,11 @@ export const addExposure = sdk.Action.withInput(
       mode: Value.select({
         name: 'Serve Mode',
         description:
-          "HTTPS serves web apps on this node's MagicDNS name with a Tailscale-managed TLS cert. For non-HTTP services prefer TLS-terminated TCP when your client can speak TLS.",
+          "HTTPS serves web apps on this node's MagicDNS name with a Tailscale-managed TLS cert, visible only to your tailnet. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET — only use it when you actually want anyone on the internet to be able to reach this service. Funnel is restricted to ports 443, 8443, and 10000.",
         default: 'https',
         values: {
-          https: 'HTTPS (Tailscale Serve + managed TLS)',
+          https: 'HTTPS (Tailscale Serve + managed TLS, tailnet-only)',
+          funnel: 'Funnel (PUBLIC HTTPS on the open internet)',
           http: 'HTTP (Tailscale Serve, no TLS)',
           'tls-terminated-tcp': 'TLS-terminated TCP (Tailscale terminates TLS)',
           tcp: 'Raw TCP forwarder',
@@ -87,6 +89,10 @@ export const addExposure = sdk.Action.withInput(
   async ({ effects, input }) => {
     const config = await readGatewayConfig()
     const { packageId, interfaceId } = decodeInterfaceKey(input.target)
+
+    if (isFunnelMode(input.mode)) {
+      assertFunnelPort(input.externalPort)
+    }
 
     if (
       config.routes.some((route) => route.externalPort === input.externalPort)
@@ -146,7 +152,12 @@ export const addExposure = sdk.Action.withInput(
     let message =
       'If this Tailscale node is signed in and Tailscale Serve is enabled for your tailnet, the new serve should become available within a few seconds.'
 
-    if (isHttpServeMode(input.mode) && input.mode === 'https') {
+    if (isFunnelMode(input.mode)) {
+      message =
+        'Saved. Funnel publishes this service on the PUBLIC INTERNET under this node\'s MagicDNS name. If Funnel is not enabled for your tailnet in the Tailscale admin console, the serve will fail to come up — check the Tailscale package logs for the exact error.'
+    }
+
+    if (input.mode === 'https' || input.mode === 'funnel') {
       const cert = await readCertStatus()
       if (cert.error) {
         resultMembers.push({

@@ -3,7 +3,13 @@ import * as path from 'node:path'
 import { z } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
 
-const exposureModeSchema = z.enum(['https', 'http', 'tcp', 'tls-terminated-tcp'])
+const exposureModeSchema = z.enum([
+  'https',
+  'http',
+  'tcp',
+  'tls-terminated-tcp',
+  'funnel',
+])
 const exposureTargetSchemeSchema = z.enum(['http', 'https+insecure', 'tcp'])
 const serviceInterfaceTypeSchema = z.enum(['ui', 'api', 'p2p'])
 
@@ -56,15 +62,34 @@ export function serveModeLabel(mode: ExposureMode): string {
       return 'TCP'
     case 'tls-terminated-tcp':
       return 'TLS-TCP'
+    case 'funnel':
+      return 'Funnel'
   }
 }
 
 export function isHttpServeMode(mode: ExposureMode): boolean {
-  return mode === 'https' || mode === 'http'
+  return mode === 'https' || mode === 'http' || mode === 'funnel'
 }
 
 export function serveUsesTailnetTls(mode: ExposureMode): boolean {
-  return mode === 'https' || mode === 'tls-terminated-tcp'
+  return (
+    mode === 'https' || mode === 'tls-terminated-tcp' || mode === 'funnel'
+  )
+}
+
+export function isFunnelMode(mode: ExposureMode): boolean {
+  return mode === 'funnel'
+}
+
+/** Tailscale only accepts these external ports for Funnel. */
+export const FUNNEL_ALLOWED_PORTS = [443, 8443, 10000] as const
+
+export function assertFunnelPort(port: number): void {
+  if (!FUNNEL_ALLOWED_PORTS.includes(port as 443 | 8443 | 10000)) {
+    throw new Error(
+      `Funnel only accepts ports ${FUNNEL_ALLOWED_PORTS.join(', ')}. Pick one of those for a Funnel serve.`,
+    )
+  }
 }
 
 export async function readGatewayConfig(): Promise<GatewayConfig> {

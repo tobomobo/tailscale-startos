@@ -77,7 +77,8 @@ If `Show Login Link` still says the link is being generated, wait a few seconds 
 
 ## Serve Actions
 
-- `Add Serve`: publish one installed StartOS interface through this Tailscale node using Tailscale Serve (HTTPS, HTTP, TCP, or TLS-terminated TCP)
+- `Add Serve`: publish one installed StartOS interface through this Tailscale node (HTTPS, Funnel, HTTP, TCP, or TLS-terminated TCP)
+- `Edit Serve`: change the published port on a saved serve
 - `Remove Serve`: stop publishing a saved route
 - `Show Serves`: inspect the serves this node is currently managing, and surface any HTTPS certificate warnings
 - `Refresh Targets`: re-resolve target container IPs if a destination service has restarted
@@ -86,7 +87,8 @@ The StartOS interface URL table also gains a quick **Serve On Tailscale** action
 
 ## Serve Modes
 
-- **HTTPS** — Tailscale Serve publishes the interface at `https://<magicdns>:<port>` with a Tailscale-managed TLS certificate. Requires HTTPS Certificates to be enabled for your tailnet in the admin console.
+- **HTTPS** — Tailscale Serve publishes the interface at `https://<magicdns>:<port>` with a Tailscale-managed TLS certificate, visible only to your tailnet. Requires HTTPS Certificates enabled in the admin console.
+- **Funnel** — Tailscale Funnel publishes the interface at `https://<magicdns>:<port>` on the **public internet**. Only ports 443, 8443, and 10000 are allowed. Requires Funnel enabled for your tailnet in the admin console (Access Controls → nodeAttrs). Only use this when you actually want the service reachable by anyone on the open web.
 - **HTTP** — plain HTTP without TLS. Fine for trusted tailnets where you do not need HTTPS.
 - **TLS-terminated TCP** — Tailscale terminates TLS and forwards the raw stream. Use this for services whose clients can speak TLS natively (e.g. TLS-capable RPC or database clients).
 - **Raw TCP** — pass-through TCP forwarder without TLS.

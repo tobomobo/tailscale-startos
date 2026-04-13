@@ -1,6 +1,8 @@
 import { sdk } from '../sdk'
 import {
+  assertFunnelPort,
   describeRoute,
+  isFunnelMode,
   readGatewayConfig,
   resolveExposureRoute,
   writeGatewayConfig,
@@ -65,6 +67,10 @@ export const editExposure = sdk.Action.withInput(
     const existing = config.routes.find((route) => route.id === input.routeId)
     if (!existing) {
       throw new Error('That serve no longer exists.')
+    }
+
+    if (isFunnelMode(existing.mode)) {
+      assertFunnelPort(input.externalPort)
     }
 
     if (existing.externalPort === input.externalPort) {

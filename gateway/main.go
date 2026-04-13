@@ -87,7 +87,7 @@ func runProxy(args []string) error {
 	for _, rt := range cfg.Routes {
 		rt := rt
 		switch rt.Mode {
-		case "http", "https":
+		case "http", "https", "funnel":
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -181,6 +181,20 @@ func runApply(args []string) error {
 				target,
 			); err != nil {
 				return fmt.Errorf("apply tls-terminated-tcp route %s: %w", rt.ID, err)
+			}
+		case "funnel":
+			if rt.ExternalPort != 443 && rt.ExternalPort != 8443 && rt.ExternalPort != 10000 {
+				return fmt.Errorf("funnel route %s uses port %d; tailscale funnel only accepts 443, 8443, 10000", rt.ID, rt.ExternalPort)
+			}
+			target := fmt.Sprintf("http://127.0.0.1:%d", rt.LocalPort)
+			if err := runTailCommand(
+				*socketPath,
+				"funnel",
+				"--bg",
+				fmt.Sprintf("--https=%d", rt.ExternalPort),
+				target,
+			); err != nil {
+				return fmt.Errorf("apply funnel route %s: %w", rt.ID, err)
 			}
 		default:
 			return fmt.Errorf("unknown mode %q for route %s", rt.Mode, rt.ID)
