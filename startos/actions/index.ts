@@ -1,6 +1,7 @@
 import { sdk } from '../sdk'
 import { addExposure } from './addExposure'
 import { addExposureFromUrl } from './addExposureFromUrl'
+import { editExposure } from './editExposure'
 import { refreshLoginLink } from './refreshLoginLink'
 import { refreshExposures } from './refreshExposures'
 import { removeExposure } from './removeExposure'
@@ -17,6 +18,7 @@ export const actions = sdk.Actions.of()
   .addAction(refreshLoginLink)
   .addAction(addExposure)
   .addAction(addExposureFromUrl)
+  .addAction(editExposure)
   .addAction(removeExposure)
   .addAction(removeExposureFromUrl)
   .addAction(showExposures)
