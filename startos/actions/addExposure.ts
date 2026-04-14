@@ -11,10 +11,47 @@ import {
   writeGatewayConfig,
 } from '../lib/gatewayConfig'
 import { explainCertError, readCertStatus } from '../lib/certInfo'
-import { chooseSuggestedExternalPort, routeDetailsForPlugin } from '../lib/tailscaleUrls'
+import { suggestedPublishedPortForBinding, routeDetailsForPlugin } from '../lib/tailscaleUrls'
 import { syncExportedUrls } from '../urlPlugin'
 
 const { InputSpec, Value } = sdk
+const SERVE_MODES = [
+  'https',
+  'funnel',
+  'http',
+  'tls-terminated-tcp',
+  'tcp',
+] as const
+
+async function suggestedPortForSelection(
+  effects: Parameters<typeof sdk.getServiceManifest>[0],
+  options: {
+    target: string | null | undefined
+    mode: (typeof SERVE_MODES)[number] | null | undefined
+  },
+): Promise<number> {
+  const candidates = await listCandidateInterfaces(effects)
+  const selectedCandidate =
+    candidates.find((candidate) => candidate.key === options.target) ??
+    candidates[0]
+  const selectedMode =
+    options.mode ??
+    (selectedCandidate?.supportsHttp ? 'https' : 'tcp')
+
+  if (!selectedCandidate) {
+    return selectedMode === 'funnel' ? 443 : 80
+  }
+
+  const config = await readGatewayConfig()
+
+  return suggestedPublishedPortForBinding(effects, {
+    packageId: selectedCandidate.packageId,
+    hostId: selectedCandidate.hostId,
+    internalPort: selectedCandidate.internalPort,
+    mode: selectedMode,
+    existingRoutes: config.routes,
+  })
+}
 
 export const addExposure = sdk.Action.withInput(
   'add-serve',
@@ -37,9 +74,14 @@ export const addExposure = sdk.Action.withInput(
             },
     }
   },
-  async ({ effects }) => {
+  async ({ effects, prefill }) => {
+    const value = prefill as
+      | {
+          target?: string
+          mode?: (typeof SERVE_MODES)[number]
+        }
+      | null
     const candidates = await listCandidateInterfaces(effects)
-    const config = await readGatewayConfig()
     const values = Object.fromEntries(
       candidates.map((candidate) => [
         candidate.key,
@@ -47,11 +89,21 @@ export const addExposure = sdk.Action.withInput(
       ]),
     )
     const defaultTarget =
-      candidates[0]?.key ?? 'no-targets-available'
-    const defaultExternalPort = chooseSuggestedExternalPort(
-      config.routes,
-      candidates[0]?.preferredExternalPort ?? 443,
-    )
+      candidates.find((candidate) => candidate.key === value?.target)?.key ??
+      candidates[0]?.key ??
+      'no-targets-available'
+    const defaultMode =
+      SERVE_MODES.find((mode) => mode === value?.mode) ??
+      (
+        candidates.find((candidate) => candidate.key === defaultTarget)
+          ?.supportsHttp
+          ? 'https'
+          : 'tcp'
+      )
+    const defaultExternalPort = await suggestedPortForSelection(effects, {
+      target: defaultTarget,
+      mode: defaultMode,
+    })
 
     return InputSpec.of({
       target: Value.dynamicSelect(async () => ({
@@ -69,7 +121,7 @@ export const addExposure = sdk.Action.withInput(
         name: 'Serve Mode',
         description:
           "HTTPS serves web apps on this node's MagicDNS name with a Tailscale-managed TLS cert, visible only to your tailnet. Funnel publishes the same HTTPS endpoint on the PUBLIC INTERNET — only use it when you actually want anyone on the internet to be able to reach this service. Funnel is restricted to ports 443, 8443, and 10000.",
-        default: 'https',
+        default: defaultMode,
         values: {
           https: 'HTTPS (Tailscale Serve + managed TLS, tailnet-only)',
           funnel: 'Funnel (PUBLIC HTTPS on the open internet)',
@@ -90,7 +142,32 @@ export const addExposure = sdk.Action.withInput(
       }),
     })
   },
-  async () => null,
+  async ({ effects, prefill }) => {
+    const value = prefill as
+      | {
+          target?: string
+          mode?: (typeof SERVE_MODES)[number]
+        }
+      | null
+    const candidates = await listCandidateInterfaces(effects)
+    const target =
+      candidates.find((candidate) => candidate.key === value?.target)?.key ??
+      candidates[0]?.key ??
+      null
+    const mode =
+      SERVE_MODES.find((candidateMode) => candidateMode === value?.mode) ??
+      (
+        candidates.find((candidate) => candidate.key === target)?.supportsHttp
+          ? 'https'
+          : 'tcp'
+      )
+
+    return {
+      target,
+      mode,
+      externalPort: await suggestedPortForSelection(effects, { target, mode }),
+    }
+  },
   async ({ effects, input }) => {
     const config = await readGatewayConfig()
     const { packageId, interfaceId } = decodeInterfaceKey(input.target)

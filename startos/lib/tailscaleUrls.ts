@@ -1,6 +1,11 @@
 import { sdk } from '../sdk'
 import type { ExposureRoute } from './gatewayConfig'
-import { readGatewayConfig, serveUsesTailnetTls } from './gatewayConfig'
+import {
+  FUNNEL_ALLOWED_PORTS,
+  readGatewayConfig,
+  serveUsesTailnetTls,
+  type ExposureMode,
+} from './gatewayConfig'
 import type { StatusInfo } from './loginInfo'
 import { readStatusInfo } from './loginInfo'
 
@@ -81,6 +86,88 @@ export function chooseSuggestedExternalPort(
   }
 
   throw new Error('No free published ports remain for new Tailscale serves.')
+}
+
+export function chooseSuggestedFunnelPort(
+  existingRoutes: ExposureRoute[],
+  preferredPort: number | null,
+): number {
+  const usedPorts = new Set(existingRoutes.map((route) => route.externalPort))
+  const candidates = [
+    preferredPort,
+    ...FUNNEL_ALLOWED_PORTS.filter((port) => port !== preferredPort),
+  ]
+
+  for (const candidate of candidates) {
+    if (
+      candidate !== null &&
+      FUNNEL_ALLOWED_PORTS.includes(candidate as 443 | 8443 | 10000) &&
+      !usedPorts.has(candidate)
+    ) {
+      return candidate
+    }
+  }
+
+  throw new Error(
+    `All allowed Funnel ports are already in use (${FUNNEL_ALLOWED_PORTS.join(', ')}).`,
+  )
+}
+
+async function preferredPublishedPortFromPortForward(
+  effects: PackageEffects,
+  options: {
+    packageId: string
+    hostId: string
+    internalPort: number
+    mode: ExposureMode
+  },
+): Promise<number | null> {
+  try {
+    const netInfo = await sdk.getServicePortForward(effects, {
+      packageId: options.packageId,
+      hostId: options.hostId,
+      internalPort: options.internalPort,
+    })
+
+    if (options.mode === 'funnel') {
+      return netInfo.assignedSslPort
+    }
+
+    if (serveUsesTailnetTls(options.mode)) {
+      return netInfo.assignedSslPort ?? netInfo.assignedPort
+    }
+
+    return netInfo.assignedPort ?? netInfo.assignedSslPort
+  } catch {
+    return null
+  }
+}
+
+export async function suggestedPublishedPortForBinding(
+  effects: PackageEffects,
+  options: {
+    packageId: string
+    hostId: string
+    internalPort: number
+    mode: ExposureMode
+    existingRoutes: ExposureRoute[]
+  },
+): Promise<number> {
+  const preferredPort = await preferredPublishedPortFromPortForward(effects, {
+    packageId: options.packageId,
+    hostId: options.hostId,
+    internalPort: options.internalPort,
+    mode: options.mode,
+  })
+
+  if (options.mode === 'funnel') {
+    return chooseSuggestedFunnelPort(options.existingRoutes, preferredPort)
+  }
+
+  return chooseSuggestedExternalPort(
+    options.existingRoutes,
+    preferredPort ?? options.internalPort,
+  )
 }
 
 export async function findRouteByBinding(

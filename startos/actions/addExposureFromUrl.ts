@@ -7,9 +7,9 @@ import {
 } from '../lib/gatewayConfig'
 import {
   chooseSuggestedExternalPort,
-  defaultExternalPortForInterface as defaultTailnetPort,
   findRouteByBinding,
   routeDetailsForPlugin,
+  suggestedPublishedPortForBinding,
   type UrlPluginTableMetadata,
 } from '../lib/tailscaleUrls'
 import { syncExportedUrls } from '../urlPlugin'
@@ -51,11 +51,19 @@ async function suggestedPortForMetadata(
     .once()
 
   const preferredPort =
-    serviceInterface?.addressInfo
-      ? defaultTailnetPort(serviceInterface.addressInfo)
-      : metadata.internalPort
+    serviceInterface?.addressInfo?.internalPort ?? metadata.internalPort
+  const supportsHttp =
+    serviceInterface?.addressInfo?.scheme?.startsWith('http') ||
+    serviceInterface?.addressInfo?.sslScheme?.startsWith('http')
+  const mode = supportsHttp ? 'https' : 'tcp'
 
-  return chooseSuggestedExternalPort(config.routes, preferredPort)
+  return suggestedPublishedPortForBinding(effects, {
+    packageId: metadata.packageId,
+    hostId: metadata.hostId,
+    internalPort: preferredPort,
+    mode,
+    existingRoutes: config.routes,
+  })
 }
 
 function unsupportedTargetResult() {

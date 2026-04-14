@@ -84,7 +84,7 @@ If `Show Login Link` still says the link is being generated, wait a few seconds 
 - `Show Serves`: inspect the serves this node is currently managing, and surface any HTTPS certificate warnings
 - `Refresh Targets`: re-resolve target container IPs if a destination service has restarted
 
-The StartOS interface URL table also gains a quick **Serve On Tailscale** action when this package is installed. That path opens a lightweight form directly from the target service's URL table with an editable published port and an automatic serve mode, and the resulting `Plugin: Tailscale` entries point back at this node's MagicDNS hostname. If a service exposes multiple interfaces, use the quick action from the specific interface row you want to publish. Suggested ports default to the interface's own advertised local service port, with the next-nearest free port used only if that exact port is already taken.
+The StartOS interface URL table also gains a quick **Serve On Tailscale** action when this package is installed. That path opens a lightweight form directly from the target service's URL table with an editable published port and an automatic serve mode, and the resulting `Plugin: Tailscale` entries point back at this node's MagicDNS hostname. If a service exposes multiple interfaces, use the quick action from the specific interface row you want to publish. For normal serves, suggested ports follow the StartOS host-facing local port assignment when available; if that port is already taken, the nearest free port is suggested instead. Funnel suggestions stay constrained to Tailscale's allowed ports.
 
 ## Serve Modes
 
