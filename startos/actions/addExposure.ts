@@ -11,7 +11,7 @@ import {
   writeGatewayConfig,
 } from '../lib/gatewayConfig'
 import { explainCertError, readCertStatus } from '../lib/certInfo'
-import { routeDetailsForPlugin } from '../lib/tailscaleUrls'
+import { chooseSuggestedExternalPort, routeDetailsForPlugin } from '../lib/tailscaleUrls'
 import { syncExportedUrls } from '../urlPlugin'
 
 const { InputSpec, Value } = sdk
@@ -39,6 +39,7 @@ export const addExposure = sdk.Action.withInput(
   },
   async ({ effects }) => {
     const candidates = await listCandidateInterfaces(effects)
+    const config = await readGatewayConfig()
     const values = Object.fromEntries(
       candidates.map((candidate) => [
         candidate.key,
@@ -47,6 +48,10 @@ export const addExposure = sdk.Action.withInput(
     )
     const defaultTarget =
       candidates[0]?.key ?? 'no-targets-available'
+    const defaultExternalPort = chooseSuggestedExternalPort(
+      config.routes,
+      candidates[0]?.preferredExternalPort ?? 443,
+    )
 
     return InputSpec.of({
       target: Value.dynamicSelect(async () => ({
@@ -77,7 +82,7 @@ export const addExposure = sdk.Action.withInput(
         name: 'Published Port',
         description:
           'This is the port other Tailscale devices will use when they connect to this node.',
-        default: 443,
+        default: defaultExternalPort,
         required: true,
         integer: true,
         min: 1,

@@ -46,6 +46,7 @@ export type CandidateInterface = {
   interfaceType: ExposureRoute['interfaceType']
   description: string
   supportsHttp: boolean
+  preferredExternalPort: number
 }
 
 const CONFIG_PATH = sdk.volumes.main.subpath('gateway-routes.json')
@@ -181,6 +182,7 @@ export async function listCandidateInterfaces(
         interfaceType: serviceInterface.type,
         description: serviceInterface.description,
         supportsHttp,
+        preferredExternalPort: serviceInterface.addressInfo.internalPort,
       })
     }
   }

@@ -55,13 +55,6 @@ export function buildTailnetUrl(route: ExposureRoute, dnsName: string): string {
 }
 
 export function defaultExternalPortForInterface(addressInfo: AddressInfoLike): number {
-  if (
-    addressInfo.sslScheme?.startsWith('http') ||
-    addressInfo.scheme?.startsWith('http')
-  ) {
-    return addressInfo.sslScheme?.startsWith('http') ? 443 : 80
-  }
-
   return addressInfo.internalPort
 }
 
@@ -75,7 +68,13 @@ export function chooseSuggestedExternalPort(
     return preferredPort
   }
 
-  for (let port = 3000; port <= 65535; port += 1) {
+  for (let port = preferredPort + 1; port <= 65535; port += 1) {
+    if (!usedPorts.has(port)) {
+      return port
+    }
+  }
+
+  for (let port = preferredPort - 1; port >= 1; port -= 1) {
     if (!usedPorts.has(port)) {
       return port
     }
