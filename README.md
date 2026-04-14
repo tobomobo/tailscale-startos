@@ -37,7 +37,7 @@ This package runs Tailscale inside a normal StartOS service container in userspa
 
 That limitation matters if your goal is something closer to StartTunnel-style host or network ingress. A standard service package can get you a Tailscale-connected container and UI today, but a true host-level Tailscale integration would likely need platform-level networking support beyond a normal package.
 
-The same SDK limitation applies to the StartOS system dashboard itself: this package can add Tailscale addresses to normal package interface tables, but the system UI is not exposed as a normal package interface in the public SDK, so there is no stable way for this package to inject a `Plugin: Tailscale` section into System Settings the same way Tor can for package services.
+The same SDK limitation applies to the StartOS system dashboard itself: this package can add Tailscale addresses to normal package interface tables, but the system UI is not exposed as a normal package interface in the public SDK, so there is no stable way for this package to inject a working `Plugin: Tailscale` serve flow into System Settings the same way Tor can for package services.
 
 ## Build
 
@@ -84,7 +84,7 @@ If `Show Login Link` still says the link is being generated, wait a few seconds 
 - `Show Serves`: inspect the serves this node is currently managing, and surface any HTTPS certificate warnings
 - `Refresh Targets`: re-resolve target container IPs if a destination service has restarted
 
-The StartOS interface URL table also gains a quick **Serve On Tailscale** action when this package is installed. That path adds a default serve directly from the target service's URL table, and the resulting `Plugin: Tailscale` entries point back at this node's MagicDNS hostname.
+The StartOS interface URL table also gains a quick **Serve On Tailscale** action when this package is installed. That path opens a lightweight form directly from the target service's URL table with an editable published port and an automatic serve mode, and the resulting `Plugin: Tailscale` entries point back at this node's MagicDNS hostname. If a service exposes multiple interfaces, use the quick action from the specific interface row you want to publish.
 
 ## Serve Modes
 

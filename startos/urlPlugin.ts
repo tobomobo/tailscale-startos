@@ -2,11 +2,10 @@ import { sdk } from './sdk'
 import { readGatewayConfig } from './lib/gatewayConfig'
 import { routeDetailsForPlugin } from './lib/tailscaleUrls'
 
-// The url-v0 plugin API expects actions typed to receive urlPluginMetadata
-// as input. Our plugin actions are declared with withoutInput for ergonomics,
-// so we hand the plugin an action-id stub here rather than reshape the
-// action types. The IDs must match the literals in addServeFromUrl /
-// removeServeFromUrl.
+// The sdk plugin registration only consumes action IDs at runtime, so we use
+// lightweight ActionInfo stubs here to avoid wiring a circular import from the
+// concrete action modules. The IDs must match the literals in the URL-plugin
+// action definitions.
 const addServeFromUrlAction = { id: 'add-serve-from-url' } as any
 const removeServeFromUrlAction = { id: 'remove-serve-from-url' } as any
 

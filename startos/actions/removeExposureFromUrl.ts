@@ -4,23 +4,38 @@ import type { UrlPluginRowMetadata } from '../lib/tailscaleUrls'
 import { findRouteByBinding } from '../lib/tailscaleUrls'
 import { syncExportedUrls } from '../urlPlugin'
 
-function pluginMetadataFromInput(input: unknown): UrlPluginRowMetadata {
-  const metadata = (input as { urlPluginMetadata?: UrlPluginRowMetadata })
-    .urlPluginMetadata
+const { InputSpec, Value } = sdk
+
+const inputSpec = InputSpec.of({
+  urlPluginMetadata: Value.hidden(),
+})
+
+function unsupportedTargetResult() {
+  return {
+    version: '1' as const,
+    title: 'Unsupported Target',
+    message:
+      'This Tailscale URL entry did not come from a normal package service interface exposed through the StartOS SDK, so it cannot be removed through the url-v0 quick action.',
+    result: null,
+  }
+}
+
+function pluginMetadataFromInput(metadata: unknown): UrlPluginRowMetadata {
+  const value = metadata as UrlPluginRowMetadata | null | undefined
 
   if (
-    !metadata?.packageId ||
-    !metadata.interfaceId ||
-    !metadata.hostId ||
-    typeof metadata.internalPort !== 'number'
+    !value?.packageId ||
+    !value.interfaceId ||
+    !value.hostId ||
+    typeof value.internalPort !== 'number'
   ) {
     throw new Error('This Tailscale URL-plugin action is missing its route metadata.')
   }
 
-  return metadata
+  return value
 }
 
-export const removeExposureFromUrl = sdk.Action.withoutInput(
+export const removeExposureFromUrl = sdk.Action.withInput(
   'remove-serve-from-url',
   async () => ({
     name: 'Stop Tailscale Serve',
@@ -31,8 +46,16 @@ export const removeExposureFromUrl = sdk.Action.withoutInput(
     group: null,
     visibility: 'hidden',
   }),
+  inputSpec,
+  async () => ({
+    urlPluginMetadata: null,
+  }),
   async ({ effects, input }) => {
-    const metadata = pluginMetadataFromInput(input)
+    if (!input.urlPluginMetadata) {
+      return unsupportedTargetResult()
+    }
+
+    const metadata = pluginMetadataFromInput(input.urlPluginMetadata)
     const config = await readGatewayConfig()
     const routeId = (metadata.info as { routeId?: string } | null)?.routeId
     const route =
